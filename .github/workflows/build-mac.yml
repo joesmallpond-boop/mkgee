@@ -50,8 +50,17 @@ jobs:
           name: MKGEE-RIG-mac
           path: dist/*.dmg
 
-      - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Release (latest build of main, or a pushed v* tag)
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.v.outputs.ver }}
+          target_commitish: ${{ github.sha }}
+          name: MKGEE RIG ${{ steps.v.outputs.ver }}
+          make_latest: true
+          overwrite_files: true
+          body: |
+            MKGEE RIG VST3 + AU for Mac (Apple Silicon + Intel), built from ${{ github.sha }}.
+            Download the DMG, open it and run "Install MKGEE RIG.pkg".
+            It isn't notarised, so the first time: right-click the pkg > Open > Open.
           files: dist/*.dmg
