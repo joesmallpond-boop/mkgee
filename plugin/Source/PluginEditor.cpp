@@ -142,15 +142,16 @@ void LookAndFeel::drawRotarySlider (Graphics& g, int x, int y, int w, int h, flo
 }
 
 void LookAndFeel::drawLinearSlider (Graphics& g, int x, int y, int w, int h, float pos, float, float,
-                                    Slider::SliderStyle, Slider&)
+                                    Slider::SliderStyle, Slider& s)
 {
     auto r = Rectangle<float> ((float) x, (float) y, (float) w, (float) h);
     const float cx = r.getCentreX();
+    const auto ink = Colour::fromString (s.getProperties().getWithDefault ("ink", "ff1a1a1a").toString());
     // slot
-    g.setColour (Colour (0xff111111));
+    g.setColour (Colour (0xff0d0f12));
     g.fillRoundedRectangle (cx - 2.5f, r.getY() - 4.0f, 5.0f, r.getHeight() + 8.0f, 2.5f);
     // scale
-    g.setColour (kInk.withAlpha (0.8f));
+    g.setColour (ink.withAlpha (0.8f));
     for (int i = 0; i <= 10; ++i)
     {
         const float yy = r.getY() + r.getHeight() * (float) i / 10.0f;
@@ -158,18 +159,16 @@ void LookAndFeel::drawLinearSlider (Graphics& g, int x, int y, int w, int h, flo
         g.drawLine (cx - 9.0f - len, yy, cx - 9.0f, yy, 1.0f);
         g.drawLine (cx + 9.0f, yy, cx + 9.0f + len, yy, 1.0f);
     }
-    // cap
+    // tan cap
     auto capR = Rectangle<float> (0, 0, 30.0f, 20.0f).withCentre ({ cx, pos });
     g.setColour (Colours::black.withAlpha (0.5f));
     g.fillRoundedRectangle (capR.translated (1.5f, 3.0f), 3.0f);
-    g.setGradientFill (ColourGradient (Colour (0xff5b5b5b), capR.getX(), capR.getY(), Colour (0xff1e1e1e), capR.getX(), capR.getBottom(), false));
+    ColourGradient grad (Colour (0xffe4cfa4), capR.getX(), capR.getY(), Colour (0xff8f7752), capR.getX(), capR.getBottom(), false);
+    grad.addColour (0.48, Colour (0xffc9ae7d));
+    grad.addColour (0.52, Colour (0xffa88f63));
+    g.setGradientFill (grad);
     g.fillRoundedRectangle (capR, 3.0f);
-    for (int i = 1; i < 4; ++i)
-    {
-        g.setColour (Colour (0x40ffffff));
-        g.drawHorizontalLine ((int) (capR.getY() + capR.getHeight() * (float) i / 4.0f), capR.getX() + 3, capR.getRight() - 3);
-    }
-    g.setColour (Colours::white);
+    g.setColour (Colour (0xff3a2f1f));
     g.fillRect (capR.getX() + 2, capR.getCentreY() - 1.0f, capR.getWidth() - 4, 2.0f);
 }
 
@@ -191,23 +190,35 @@ Knob::Knob (AudioProcessorValueTreeState& s, const String& id, const String& l, 
     if (auto* p = s.getParameter (id))
         slider.setDoubleClickReturnValue (true, (double) p->convertFrom0to1 (p->convertTo0to1 (defaultFor (id))));
     slider.setTooltip (label);
+    setInterceptsMouseClicks (false, true);
 }
 
 void Knob::resized()
 {
     auto r = getLocalBounds();
-    r.removeFromBottom (14);
-    slider.setBounds (r);
+    if (labelSide == 1)      slider.setBounds (r.removeFromLeft (r.getHeight()));
+    else if (labelSide == 2) slider.setBounds (r.removeFromRight (r.getHeight()));
+    else                     slider.setBounds (r.withTrimmedBottom (14));
 }
 
 void Knob::paint (Graphics& g)
 {
     g.setColour (labelColour);
-    g.setFont (font (10.5f));
-    g.drawFittedText (label.toUpperCase(), getLocalBounds().removeFromBottom (14), Justification::centred, 1);
+    auto r = getLocalBounds();
+    if (labelSide == 0)
+    {
+        g.setFont (font (10.5f));
+        g.drawFittedText (label.toUpperCase(), r.removeFromBottom (14), Justification::centred, 1);
+        return;
+    }
+    // channel-strip style: small caps label beside the knob with a leader line
+    g.setFont (font (9.0f));
+    const bool right = labelSide == 1;
+    auto text = right ? r.withTrimmedLeft (r.getHeight() + 2) : r.withTrimmedRight (r.getHeight() + 2);
+    g.drawFittedText (label.toUpperCase(), text, right ? Justification::centredLeft : Justification::centredRight, 1);
 }
 
-Fader::Fader (AudioProcessorValueTreeState& s, const String& id, Colour lc) : labelColour (lc)
+Fader::Fader (AudioProcessorValueTreeState& s, const String& id, Colour lc, String cap) : labelColour (lc), caption (cap)
 {
     slider.setSliderStyle (Slider::LinearVertical);
     slider.setTextBoxStyle (Slider::NoTextBox, false, 0, 0);
@@ -223,7 +234,7 @@ void Fader::paint (Graphics& g)
 {
     g.setColour (labelColour);
     g.setFont (font (10.5f));
-    g.drawFittedText ("FADER", getLocalBounds().removeFromBottom (14), Justification::centred, 1);
+    g.drawFittedText (caption, getLocalBounds().removeFromBottom (18), Justification::centred, 1);
 }
 
 // =====================================================================================
@@ -336,9 +347,10 @@ Knob& Unit::knob (const String& id, const String& label, KnobStyle style, Rectan
     return ref;
 }
 
-void Unit::fader (const String& id, Rectangle<int> r)
+void Unit::fader (const String& id, Rectangle<int> r, String caption)
 {
-    auto f = std::make_unique<Fader> (proc.apvts, id, ink);
+    auto f = std::make_unique<Fader> (proc.apvts, id, ink, caption);
+    f->slider.getProperties().set ("ink", ink.toString());
     addAndMakeVisible (*f);
     f->setBounds (r);
     parts.emplace_back (std::move (f), r);
@@ -500,9 +512,9 @@ void Unit::paintStrip (Graphics& g)
     g.setFont (font (12.0f));
     g.drawText ("1", Rectangle<int> (10, 4, 20, 14), Justification::centredLeft);
     paintLed (g, { 64.0f, 30.0f }, peak, Colour (0xffff2a1a));
+    g.setColour (ink);
     g.setFont (font (7.5f));
     g.drawText ("PEAK", Rectangle<int> (52, 38, 24, 10), Justification::centred);
-    // name printed vertically down the fader side
     g.setFont (font (11.0f));
     g.setColour (ink.withAlpha (0.85f));
     g.drawFittedText (name, Rectangle<int> (76, 4, getWidth() - 82, 14), Justification::centred, 1);
@@ -621,16 +633,17 @@ Board::Board (MkgeeRigProcessor& p) : proc (p)
         u->button ("echo_pos", ParamButton::Mini, { 35, 162, 100, 24 }, "PRE", "POST");
         u->button ("echo_on", ParamButton::Foot, { 61, 238, 48, 48 });
     }
-    // ---- 4-TRACK CHANNEL STRIP
+    // ---- 4-TRACK CHANNEL STRIP (portastudio colours: slate panel, black knobs, tan fader)
     {
-        strip = add (new Unit (p, Unit::Strip, Colour (0xffc4c1b8), kInk, "4-TRACK", "", "pre_on"), 150);
-        strip->knob ("pre_trim", "Trim", Mixer, { 8, 22, 58, 68 }, Colour (0xffc8372d));
-        strip->knob ("pre_treble", "Treble", Mixer, { 8, 92, 58, 66 }, Colour (0xff8a8a8a));
-        strip->knob ("pre_mid", "Mid", Mixer, { 8, 160, 58, 66 }, Colour (0xff8a8a8a));
-        strip->knob ("pre_bass", "Bass", Mixer, { 8, 228, 58, 66 }, Colour (0xff8a8a8a));
+        const Colour knobCap (0xff1e1f22);
+        strip = add (new Unit (p, Unit::Strip, Colour (0xff5d6673), Colour (0xffe9ebee), "4-TRACK", "", "pre_on"), 150);
+        strip->knob ("pre_trim", "Trim", Mixer, { 8, 22, 58, 68 }, knobCap);
+        strip->knob ("pre_treble", "Treble", Mixer, { 8, 92, 58, 66 }, knobCap);
+        strip->knob ("pre_mid", "Mid", Mixer, { 8, 160, 58, 66 }, knobCap);
+        strip->knob ("pre_bass", "Bass", Mixer, { 8, 228, 58, 66 }, knobCap);
         strip->button ("pre_on", ParamButton::Rocker, { 86, 22, 50, 18 });
         strip->fader ("pre_fader", { 82, 44, 58, 186 });
-        strip->knob ("pre_level", "Level", Mixer, { 82, 232, 58, 62 }, Colour (0xffe9e3d3));
+        strip->knob ("pre_level", "Level", Mixer, { 82, 232, 58, 62 }, knobCap);
     }
     // ---- CASSETTE
     {

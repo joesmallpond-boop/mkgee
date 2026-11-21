@@ -25,6 +25,8 @@ public:
     void resized() override;
     void paint (juce::Graphics&) override;
     juce::Slider slider;
+    int labelSide = 0;   // 0 below, 1 right of knob, 2 left of knob
+    void setLabelSide (int s) { labelSide = s; resized(); repaint(); }
 private:
     juce::String label;
     juce::Colour labelColour;
@@ -34,12 +36,13 @@ private:
 class Fader : public juce::Component
 {
 public:
-    Fader (juce::AudioProcessorValueTreeState&, const juce::String& id, juce::Colour labelColour);
+    Fader (juce::AudioProcessorValueTreeState&, const juce::String& id, juce::Colour labelColour, juce::String caption = "FADER");
     void resized() override;
     void paint (juce::Graphics&) override;
     juce::Slider slider;
 private:
     juce::Colour labelColour;
+    juce::String caption;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> att;
 };
 
@@ -68,7 +71,7 @@ public:
 
     Knob& knob (const juce::String& id, const juce::String& label, KnobStyle, juce::Rectangle<int>,
                 juce::Colour cap = juce::Colours::white);
-    void fader (const juce::String& id, juce::Rectangle<int>);
+    void fader (const juce::String& id, juce::Rectangle<int>, juce::String caption = "FADER");
     void button (const juce::String& id, ParamButton::Kind, juce::Rectangle<int>, juce::String a = {}, juce::String b = {});
 
     void paint (juce::Graphics&) override;
