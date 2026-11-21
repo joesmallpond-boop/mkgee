@@ -1,0 +1,57 @@
+name: Build Mac plugin + installer
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: v
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "ver=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT; else echo "ver=1.0.0" >> $GITHUB_OUTPUT; fi
+
+      - name: Configure (universal arm64 + x86_64)
+        run: cmake -S plugin -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+
+      - name: Build VST3 + AU
+        run: cmake --build build --config Release -j 4
+
+      - name: Ad-hoc sign
+        run: |
+          ART=build/MkgeeRig_artefacts/Release
+          codesign --force --deep -s - "$ART/VST3/MKGEE RIG.vst3"
+          codesign --force --deep -s - "$ART/AU/MKGEE RIG.component"
+          lipo -info "$ART/AU/MKGEE RIG.component/Contents/MacOS/MKGEE RIG"
+
+      - name: Validate AU (auval)
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "build/MkgeeRig_artefacts/Release/AU/MKGEE RIG.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          sleep 3
+          auval -a | grep -i klbs || true
+          auval -strict -v aufx Mkge Klbs
+
+      - name: Build installer DMG
+        run: installer/build_installer.sh build/MkgeeRig_artefacts/Release ${{ steps.v.outputs.ver }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MKGEE-RIG-mac
+          path: dist/*.dmg
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.dmg

@@ -29,6 +29,18 @@ The defaults are a starting point for the sound: Drop −5, CE-1 vibrato with sl
 
 **Dialling the 424 stage:** keep Trim moderate and raise the Fader until chords start to break up. Higher Trim also makes it darker and gooier. Level compensates so the stage sits near unity.
 
+## VST3 / AU plugin (Mac)
+
+![plugin](docs/plugin-ui.png)
+
+The same DSP as the Max for Live device, as a VST3 and Audio Unit with a hardware-style UI. The chain runs left to right: guitar in, the five pedals, the 4-track channel strip with its fader, the cassette deck, then out. Click a footswitch to bypass that pedal. Double-click any knob to reset it. Drag the window corner to resize.
+
+**Install:** download the DMG from [Releases](../../releases) or from the latest *Build Mac plugin + installer* Actions run. Open it and run `Install MKGEE RIG.pkg`. The plugin isn't notarised, so the first time you'll need right-click the pkg > Open.
+
+**Build it yourself:** `cmake -S plugin -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build`, then `installer/build_installer.sh build/MkgeeRig_artefacts/Release 1.0.0`.
+
+**DSP source of truth:** `tools/dsp.py` generates both `gen/mkgee_rig.genexpr` (Ableton) and `plugin/Source/MkgeeDSP.h` (plugin, via `python3 tools/gen_cpp.py`), so the two always match.
+
 ## Repo layout
 - `device/MKGEE RIG.amxd`: the device
 - `device/mkgee_rig.maxpat`: the same patch as a plain Max patcher

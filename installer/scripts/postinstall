@@ -1,0 +1,6 @@
+#!/bin/bash
+# clear quarantine so hosts load the unsigned plugins, and refresh the AU cache
+xattr -dr com.apple.quarantine "/Library/Audio/Plug-Ins/VST3/MKGEE RIG.vst3" 2>/dev/null
+xattr -dr com.apple.quarantine "/Library/Audio/Plug-Ins/Components/MKGEE RIG.component" 2>/dev/null
+killall -9 AudioComponentRegistrar 2>/dev/null
+exit 0
